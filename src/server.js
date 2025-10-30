@@ -15,7 +15,13 @@ app.get('/', (req, res) => {
 
 app.use('/api', mainRouter);
 
-app.listen(config.port, () => {
-  console.log(`Servidor rodando na porta ${config.port}`);
-  console.log(`Acesso local: http://localhost:${config.port}`);
-});
+// Para desenvolvimento local
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(config.port, () => {
+    console.log(`Servidor rodando na porta ${config.port}`);
+    console.log(`Acesso local: http://localhost:${config.port}`);
+  });
+}
+
+// Para Vercel (serverless)
+export default app;
