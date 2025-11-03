@@ -72,3 +72,8 @@ temp/
 # Misc
 .cache/
 .serverless/
+# Environment files
+.env
+.env.local
+.env.homolog
+.env.production
