@@ -7,7 +7,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "vercel-build": "echo 'Build completed'",
+    "migrate": "node src/database/migrate.js migrate",
+    "migrate:info": "node src/database/migrate.js info",
+    "db:test": "node -e \"import('./src/database/db.js').then(db => db.testConnection())\"",
+    "vercel-build": "npm run migrate",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -22,7 +25,8 @@
   "homepage": "https://github.com/compass-estagio/backend-geral#readme",
   "dependencies": {
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
