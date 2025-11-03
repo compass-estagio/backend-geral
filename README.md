@@ -6,6 +6,8 @@ API REST para consultor financeiro digital que centraliza e otimiza investimento
 
 - **Node.js** com **Express 5**
 - **PostgreSQL** (Neon Database)
+- **JWT** para autenticação
+- **bcrypt** para hash de senhas
 - **dotenv** para variáveis de ambiente
 - Arquitetura **MVC**
 
@@ -33,7 +35,7 @@ npm install
 cp .env.example .env
 ```
 
-4. Edite o arquivo `.env` com suas credenciais do Neon:
+4. Edite o arquivo `.env` com suas credenciais:
 ```env
 NODE_ENV=development
 PORT=3000
@@ -41,6 +43,10 @@ PORT=3000
 # Database - Neon PostgreSQL
 DATABASE_URL=postgresql://user:password@host/database?sslmode=require
 DATABASE_URL_UNPOOLED=postgresql://user:password@host/database?sslmode=require
+
+# JWT Authentication
+JWT_SECRET=sua-chave-secreta-super-segura-aqui
+JWT_EXPIRES_IN=7d
 ```
 
 5. Execute as migrations:
@@ -116,6 +122,102 @@ Endpoint raiz da aplicação.
 }
 ```
 
+### Autenticação
+
+#### Registro de Usuário
+**POST** `/api/auth/register`
+
+Cria um novo usuário no sistema. O CPF deve conter 11 dígitos (apenas números).
+
+**Body:**
+```json
+{
+  "cpf": "11144477735",
+  "name": "João Silva",
+  "email": "joao@example.com",
+  "password": "senha123"
+}
+```
+
+**Resposta de sucesso (201):**
+```json
+{
+  "message": "Usuário criado com sucesso",
+  "user": {
+    "id": 1,
+    "cpf": "11144477735",
+    "name": "João Silva",
+    "email": "joao@example.com",
+    "created_at": "2025-11-03T20:02:25.216Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Erros possíveis:**
+- `400` - CPF inválido, senha fraca ou campos obrigatórios faltando
+- `409` - CPF ou email já cadastrado
+
+#### Login
+**POST** `/api/auth/login`
+
+Realiza login com CPF e senha.
+
+**Body:**
+```json
+{
+  "cpf": "11144477735",
+  "password": "senha123"
+}
+```
+
+**Resposta de sucesso (200):**
+```json
+{
+  "message": "Login realizado com sucesso",
+  "user": {
+    "id": 1,
+    "cpf": "11144477735",
+    "name": "João Silva",
+    "email": "joao@example.com"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Erros possíveis:**
+- `400` - Campos obrigatórios faltando
+- `401` - CPF ou senha incorretos
+
+#### Dados do Usuário Autenticado
+**GET** `/api/auth/me`
+
+Retorna os dados do usuário autenticado. **Requer autenticação JWT**.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Resposta de sucesso (200):**
+```json
+{
+  "user": {
+    "id": 1,
+    "cpf": "11144477735",
+    "name": "João Silva",
+    "email": "joao@example.com",
+    "created_at": "2025-11-03T20:02:25.216Z",
+    "updated_at": "2025-11-03T20:02:25.216Z"
+  }
+}
+```
+
+**Erros possíveis:**
+- `401` - Token não fornecido ou expirado
+- `403` - Token inválido
+- `404` - Usuário não encontrado
+
 ## Estrutura do Projeto
 
 ```
@@ -124,13 +226,20 @@ backend-geral/
 │   ├── config/           # Configurações da aplicação
 │   │   └── index.js
 │   ├── controllers/      # Controllers (lógica de negócio)
+│   │   ├── authController.js
 │   │   └── healthController.js
 │   ├── database/         # Configuração do banco de dados
 │   │   ├── db.js         # Pool de conexões
 │   │   ├── migrate.js    # Sistema de migrations
 │   │   └── migrations/   # Arquivos de migration
-│   │       └── V1__create_initial_schema.sql
+│   │       ├── V1__create_initial_schema.sql
+│   │       └── V2__add_cpf_to_users.sql
+│   ├── middlewares/      # Middlewares da aplicação
+│   │   └── auth.js       # Autenticação JWT
+│   ├── models/           # Models do banco de dados
+│   │   └── User.js
 │   ├── routes/           # Rotas da API
+│   │   ├── authRoutes.js
 │   │   └── index.js
 │   └── server.js         # Ponto de entrada da aplicação
 ├── test-db-final.js      # Script de teste do banco
@@ -143,35 +252,40 @@ backend-geral/
 
 ### Tabela: users
 ```sql
-id              UUID PRIMARY KEY
+id              SERIAL PRIMARY KEY
+cpf             VARCHAR(11) UNIQUE
 email           VARCHAR(255) UNIQUE NOT NULL
 password_hash   VARCHAR(255) NOT NULL
-full_name       VARCHAR(255) NOT NULL
-created_at      TIMESTAMP DEFAULT NOW()
-updated_at      TIMESTAMP DEFAULT NOW()
+name            VARCHAR(255) NOT NULL
+created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+deleted_at      TIMESTAMP NULL
 ```
 
 ### Tabela: financial_accounts
 ```sql
-id              UUID PRIMARY KEY
-user_id         UUID REFERENCES users(id)
-institution     VARCHAR(255) NOT NULL
-account_type    VARCHAR(50) NOT NULL
-balance         DECIMAL(15,2) DEFAULT 0
-currency        VARCHAR(3) DEFAULT 'BRL'
-created_at      TIMESTAMP DEFAULT NOW()
-updated_at      TIMESTAMP DEFAULT NOW()
+id                  SERIAL PRIMARY KEY
+user_id             INTEGER REFERENCES users(id) ON DELETE CASCADE
+institution_name    VARCHAR(255) NOT NULL
+account_type        VARCHAR(50) NOT NULL
+balance             DECIMAL(15,2) DEFAULT 0.00
+currency            VARCHAR(3) DEFAULT 'BRL'
+created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+deleted_at          TIMESTAMP NULL
 ```
 
 ### Tabela: transactions
 ```sql
-id                  UUID PRIMARY KEY
-account_id          UUID REFERENCES financial_accounts(id)
-type                VARCHAR(50) NOT NULL
+id                  SERIAL PRIMARY KEY
+account_id          INTEGER REFERENCES financial_accounts(id) ON DELETE CASCADE
 amount              DECIMAL(15,2) NOT NULL
+transaction_type    VARCHAR(20) NOT NULL
+category            VARCHAR(100)
 description         TEXT
 transaction_date    TIMESTAMP NOT NULL
-created_at          TIMESTAMP DEFAULT NOW()
+created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ```
 
 ## Scripts Disponíveis
@@ -192,6 +306,8 @@ O projeto está configurado para deploy automático na Vercel:
 2. Configure as variáveis de ambiente no painel da Vercel:
    - `DATABASE_URL`
    - `DATABASE_URL_UNPOOLED`
+   - `JWT_SECRET` (gere uma chave segura)
+   - `JWT_EXPIRES_IN` (ex: 7d)
    - `NODE_ENV=production`
 3. As migrations serão executadas automaticamente no build
 
@@ -232,6 +348,42 @@ const api = axios.create({
 
 // Health check
 const { data } = await api.get('/health');
+```
+
+### Autenticação no Frontend
+
+```javascript
+// Login
+const login = async (cpf, password) => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cpf, password }),
+  });
+
+  const data = await response.json();
+
+  if (response.ok) {
+    // Salvar token (localStorage, cookie, etc)
+    localStorage.setItem('token', data.token);
+    return data.user;
+  }
+
+  throw new Error(data.message);
+};
+
+// Requisição autenticada
+const getUserData = async () => {
+  const token = localStorage.getItem('token');
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return await response.json();
+};
 ```
 
 ### CORS
