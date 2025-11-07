@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { healthCheck } from '../controllers/healthController.js';
 import authRoutes from './authRoutes.js';
-import integrationRoutes from './integration.routes.js';
+import integrationRoutes from './integrationRoutes.js';
 
 const router = Router();
 

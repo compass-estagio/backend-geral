@@ -1,6 +1,6 @@
 import * as IntegrationService from '../services/integration.service.js';
 import User from '../models/User.js';
-import FinancialAccount from '../models/FinancialAccount.js'; 
+import FinancialAccount from '../models/FinancialAccounts.js'; 
 import Institution from '../models/Institution.js'; 
 
 export const connectInstitution = async (req, res) => {
