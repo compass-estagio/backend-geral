@@ -18,4 +18,11 @@ router.post(
   controller.connectInstitution
 );
 
+ // Busca todos os saldos consolidados das contas conectadas
+router.get(
+  '/dashboard/accounts',
+  authenticateToken,
+  controller.getConsolidatedAccounts
+);
+
 export default router;

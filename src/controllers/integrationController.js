@@ -69,3 +69,55 @@ export const listInstitutions = async (req, res) => {
      res.status(500).json({ message: 'Falha ao listar instituições.' });
    }
 };
+
+export const getConsolidatedAccounts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const localAccounts = await FinancialAccount.findByUserId(userId);
+
+    if (!localAccounts || localAccounts.length === 0) {
+      return res.status(200).json([]); 
+    }
+    
+    const institutions = await Institution.findAll();
+    const institutionMap = new Map(institutions.map(i => [i.name, i.base_url]));
+
+    const consolidatedAccounts = [];
+    for (const account of localAccounts) {
+      const baseUrl = institutionMap.get(account.institution_name);
+      if (!baseUrl) continue; 
+
+      try {
+        const balanceResponse = await IntegrationService.getIfAccountBalance(
+          account.if_account_id,
+          baseUrl
+        );
+        
+        consolidatedAccounts.push({
+          localId: account.id,
+          institution: account.institution_name,
+          type: account.account_type,
+          ifAccountId: account.if_account_id,
+          balance: balanceResponse.balance 
+        });
+
+      } catch (error) {
+        consolidatedAccounts.push({
+          localId: account.id,
+          institution: account.institution_name,
+          type: account.account_type,
+          ifAccountId: account.if_account_id,
+          balance: null,
+          error: "Não foi possível buscar o saldo. (Consentimento pode ter expirado)"
+        });
+      }
+    }
+
+    res.status(200).json(consolidatedAccounts);
+
+  } catch (error) {
+    console.error("Erro ao consolidar contas:", error.message);
+    res.status(500).json({ message: 'Falha ao buscar dados consolidados.' });
+  }
+};
