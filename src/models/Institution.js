@@ -12,5 +12,18 @@ class Institution {
     const result = await db.query(query);
     return result.rows;
   }
+
+  /**
+   * Busca uma instituição pelo nome
+   * @param {string} name - Nome da instituição
+   * @returns {Promise<Object|null>} A instituição encontrada
+   */
+  static async findByName(name) {
+    const query = `
+      SELECT * FROM institutions WHERE name = $1
+    `;
+    const result = await db.query(query, [name]);
+    return result.rows[0] || null;
+  }
 }
 export default Institution;
