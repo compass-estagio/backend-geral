@@ -121,3 +121,39 @@ export const getConsolidatedAccounts = async (req, res) => {
     res.status(500).json({ message: 'Falha ao buscar dados consolidados.' });
   }
 };
+
+export const getTransactionsForAccount = async (req, res) => {
+  try {
+    const userId = req.user.id; 
+    const { localAccountId } = req.params; 
+
+    const localAccount = await FinancialAccount.findById(localAccountId);
+
+    if (!localAccount || localAccount.user_id !== userId) {
+      return res.status(403).json({ message: "Acesso negado a esta conta." });
+    }
+
+    const institution = await Institution.findByName(localAccount.institution_name);
+    if (!institution) {
+      return res.status(404).json({ message: "Instituição não encontrada." });
+    }
+
+    const transactions = await IntegrationService.getIfTransactions(
+      localAccount.if_account_id, 
+      institution.base_url
+    );
+
+    res.status(200).json(transactions);
+
+  } catch (error) {
+    console.error("Erro ao buscar transações consolidadas:", error.message);
+    
+    if (error.response && error.response.status === 403) {
+      return res.status(403).json({ 
+        message: 'Acesso negado pela Instituição Financeira.',
+        error: error.response.data?.error || 'Consentimento inválido ou expirado.'
+      });
+    }
+    res.status(500).json({ message: 'Falha ao buscar transações.' });
+  }
+};
