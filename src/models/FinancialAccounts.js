@@ -58,7 +58,25 @@ class FinancialAccount {
     const result = await db.query(query, [userId]);
     return result.rows;
   }
+
+/**
+   * Busca uma conta financeira pelo seu ID local (PostgreSQL)
+   * @param {number} id - ID da tabela 'financial_accounts'
+   * @returns {Promise<Object|null>} A conta encontrada
+   */
+  static async findById(id) {
+    const query = `
+      SELECT *
+      FROM financial_accounts
+      WHERE id = $1 AND deleted_at IS NULL
+    `;
+    
+    const result = await db.query(query, [id]);
+    return result.rows[0] || null;
+  }
   
 }
+
+
 
 export default FinancialAccount;

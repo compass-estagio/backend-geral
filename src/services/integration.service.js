@@ -49,3 +49,13 @@ export const getIfAccountBalance = async (accountId, baseUrl) => {
   }
 };
 
+export const getIfTransactions = async (accountId, baseUrl) => {
+  try {
+    const response = await axios.get(`${baseUrl}/transactions/${accountId}`);
+    return response.data; 
+  } catch (error) {
+     console.error(`Erro em getIfTransactions (${baseUrl}):`, error.response?.data);
+    throw error;
+  }
+};
+
