@@ -23,10 +23,13 @@ class FinancialAccount {
 
     const query = `
       INSERT INTO financial_accounts 
-        (user_id, institution_name, account_type, balance, currency, 
-         if_customer_id, if_account_id)
+        (user_id, institution_name, account_type, balance, currency, if_customer_id, if_account_id)
       VALUES 
         ($1, $2, $3, $4, 'BRL', $5, $6)
+      ON CONFLICT (institution_name, if_account_id) 
+      DO UPDATE SET 
+        balance = EXCLUDED.balance,
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
     
