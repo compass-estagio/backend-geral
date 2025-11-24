@@ -12,13 +12,13 @@ function calculatePoupancaYield(selicRate) {
 }
 
 /**
- * Filtra e ordena as melhores oportunidades por categoria
- * @param {Array} products - Lista crua de produtos de todas as IFs
+ * Filtra e ordena as melhores oportunidades de investimento por categoria
+ * @param {Array} products - Lista de produtos de todas as IFs
  */
 function getBestOpportunities(products) {
-  const bestFixedIncome = products
+  const bestCDB = products
     .filter(p => p.productType === 'CDB' && p.rateType === 'CDI')
-    .sort((a, b) => b.rateValue - a.rateValue)
+    .sort((a, b) => b.rateValue - a.rateValue) 
     .slice(0, 3);
 
   const bestTreasury = products
@@ -26,14 +26,30 @@ function getBestOpportunities(products) {
     .sort((a, b) => (b.couponRate || 0) - (a.couponRate || 0))
     .slice(0, 3);
 
-  const highlightsVariable = products
-    .filter(p => ['STOCK', 'FII'].includes(p.productType))
+  const bestFunds = products
+    .filter(p => p.productType === 'FUNDS')
+    .sort((a, b) => a.adminFee - b.adminFee) 
+    .slice(0, 3);
+
+  const bestStocks = products
+    .filter(p => p.productType === 'STOCK')
     .slice(0, 3); 
 
+  const bestFIIs = products
+    .filter(p => p.productType === 'FII')
+    .slice(0, 3);
+
+  const bestCrypto = products
+    .filter(p => p.productType === 'CRYPTO')
+    .slice(0, 3);
+
   return {
-    fixedIncome: bestFixedIncome,
+    fixedIncome: bestCDB,
     treasury: bestTreasury,
-    variable: highlightsVariable
+    funds: bestFunds,
+    stocks: bestStocks,
+    fiis: bestFIIs,
+    crypto: bestCrypto
   };
 }
 
@@ -73,10 +89,13 @@ export const analyzeUserPortfolio = async (userId) => {
 
   for (const institution of institutions.slice(0, 3)) {
     if (institution.base_url) {
-      const products = await IntegrationService.getIfProducts(institution.base_url);
-      allMarketProducts = [...allMarketProducts, ...products];
-
-      visitedBaseUrls.add(institution.base_url);
+      try {
+        const products = await IntegrationService.getIfProducts(institution.base_url);
+        allMarketProducts = [...allMarketProducts, ...products];
+        visitedBaseUrls.add(institution.base_url);
+      } catch (e) {
+        console.error(`Erro ao buscar vitrine em ${institution.name}`);
+      }
     }
   }
   
@@ -85,9 +104,13 @@ export const analyzeUserPortfolio = async (userId) => {
     if (!baseUrl) continue;
 
     if (!visitedBaseUrls.has(baseUrl)) {
-      const products = await IntegrationService.getIfProducts(baseUrl);
-      allMarketProducts = [...allMarketProducts, ...products];
-      visitedBaseUrls.add(baseUrl);
+      try {
+        const products = await IntegrationService.getIfProducts(baseUrl);
+        allMarketProducts = [...allMarketProducts, ...products];
+        visitedBaseUrls.add(baseUrl);
+      } catch (e) { 
+        console.error(`Erro ao buscar produtos da conta ${account.institution_name}`); 
+      }
     }
     
     if (account.account_type === 'savings') {
