@@ -12,6 +12,32 @@ function calculatePoupancaYield(selicRate) {
 }
 
 /**
+ * Filtra e ordena as melhores oportunidades por categoria
+ * @param {Array} products - Lista crua de produtos de todas as IFs
+ */
+function getBestOpportunities(products) {
+  const bestFixedIncome = products
+    .filter(p => p.productType === 'CDB' && p.rateType === 'CDI')
+    .sort((a, b) => b.rateValue - a.rateValue)
+    .slice(0, 3);
+
+  const bestTreasury = products
+    .filter(p => p.productType === 'TREASURY')
+    .sort((a, b) => (b.couponRate || 0) - (a.couponRate || 0))
+    .slice(0, 3);
+
+  const highlightsVariable = products
+    .filter(p => ['STOCK', 'FII'].includes(p.productType))
+    .slice(0, 3); 
+
+  return {
+    fixedIncome: bestFixedIncome,
+    treasury: bestTreasury,
+    variable: highlightsVariable
+  };
+}
+
+/**
  * [CORE] Analisa a carteira e gera dados para o Dashboard (Gráficos + Sugestões)
  * @param {number} userId 
  */
@@ -38,13 +64,32 @@ export const analyzeUserPortfolio = async (userId) => {
       'FUNDS': 0,
       'OTHERS': 0
     },
-    suggestions: []
+    suggestions: [],
+    opportunities: {}
   };
 
+  let allMarketProducts = [];
+  const visitedBaseUrls = new Set();
+
+  for (const institution of institutions.slice(0, 3)) {
+    if (institution.base_url) {
+      const products = await IntegrationService.getIfProducts(institution.base_url);
+      allMarketProducts = [...allMarketProducts, ...products];
+
+      visitedBaseUrls.add(institution.base_url);
+    }
+  }
+  
   for (const account of localAccounts) {
     const baseUrl = institutionMap.get(account.institution_name);
     if (!baseUrl) continue;
 
+    if (!visitedBaseUrls.has(baseUrl)) {
+      const products = await IntegrationService.getIfProducts(baseUrl);
+      allMarketProducts = [...allMarketProducts, ...products];
+      visitedBaseUrls.add(baseUrl);
+    }
+    
     if (account.account_type === 'savings') {
       const balData = await IntegrationService.getIfAccountBalance(account.if_account_id, baseUrl);
       const balance = parseFloat(balData.balance || 0);
@@ -96,15 +141,27 @@ export const analyzeUserPortfolio = async (userId) => {
         }
 
         if (typeKey === 'FUNDS' && product.adminFee > 2) {
-          dashboard.suggestions.push({
-            type: 'ALERT',
-            title: `Taxa alta em ${product.name}`,
-            message: `Taxa de administração de ${product.adminFee}%. Verifique a performance.`,
-            score: 3
-          });
+            dashboard.suggestions.push({
+              type: 'ALERT',
+              title: `Taxa alta em ${product.name}`,
+              message: `Taxa de administração de ${product.adminFee}%. Verifique a performance.`,
+              score: 3
+            });
         }
       }
     }
+  }
+
+  dashboard.opportunities = getBestOpportunities(allMarketProducts);
+
+  if (dashboard.summary.totalInvested === 0 && dashboard.opportunities.fixedIncome.length > 0) {
+    const bestCDB = dashboard.opportunities.fixedIncome[0];
+    dashboard.suggestions.push({
+      type: 'OPPORTUNITY',
+      title: 'Comece a investir',
+      message: `Aproveite o ${bestCDB.name} rendendo ${bestCDB.rateValue}% do CDI.`,
+      score: 0
+    });
   }
 
   dashboard.summary.grandTotal = dashboard.summary.totalBalance + dashboard.summary.totalInvested;

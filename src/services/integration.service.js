@@ -81,3 +81,17 @@ export const getIfInvestments = async (accountId, baseUrl) => {
     return [];
   }
 };
+
+export const getIfProducts = async (baseUrl) => {
+  try {
+    const response = await axios.get(`${baseUrl}/products`);
+    
+    if (response.data && response.data.products) {
+      return response.data.products;
+    }
+    return [];
+  } catch (error) {
+    console.error(`Erro ao buscar produtos na IF ${baseUrl}:`, error.message);
+    return [];
+  }
+};
