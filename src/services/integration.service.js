@@ -49,23 +49,12 @@ export const getIfAccountBalance = async (accountId, baseUrl) => {
   }
 };
 
-
-/**
- * Busca as transações de uma conta específica na IF.
- * @param {string} accountId - ID da conta na IF
- * @param {string} baseUrl - URL base da IF
- * @returns {Promise<Array>} Lista de transações/investimentos
- */
-export const getIfAccountTransactions = async (accountId, baseUrl) => {
+export const getIfTransactions = async (accountId, baseUrl) => {
   try {
     const response = await axios.get(`${baseUrl}/transactions/${accountId}`);
     return response.data; 
-  
   } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return []; 
-    }
-    console.error(`Erro em getIfAccountTransactions (${baseUrl}):`, error.response?.data);
+     console.error(`Erro em getIfTransactions (${baseUrl}):`, error.response?.data);
     throw error;
   }
 };

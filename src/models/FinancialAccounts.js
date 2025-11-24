@@ -23,10 +23,13 @@ class FinancialAccount {
 
     const query = `
       INSERT INTO financial_accounts 
-        (user_id, institution_name, account_type, balance, currency, 
-         if_customer_id, if_account_id)
+        (user_id, institution_name, account_type, balance, currency, if_customer_id, if_account_id)
       VALUES 
         ($1, $2, $3, $4, 'BRL', $5, $6)
+      ON CONFLICT (institution_name, if_account_id) 
+      DO UPDATE SET 
+        balance = EXCLUDED.balance,
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
     
@@ -58,7 +61,25 @@ class FinancialAccount {
     const result = await db.query(query, [userId]);
     return result.rows;
   }
+
+/**
+   * Busca uma conta financeira pelo seu ID local (PostgreSQL)
+   * @param {number} id - ID da tabela 'financial_accounts'
+   * @returns {Promise<Object|null>} A conta encontrada
+   */
+  static async findById(id) {
+    const query = `
+      SELECT *
+      FROM financial_accounts
+      WHERE id = $1 AND deleted_at IS NULL
+    `;
+    
+    const result = await db.query(query, [id]);
+    return result.rows[0] || null;
+  }
   
 }
+
+
 
 export default FinancialAccount;
