@@ -58,3 +58,24 @@ export const getIfTransactions = async (accountId, baseUrl) => {
     throw error;
   }
 };
+
+export const getIfInvestments = async (accountId, baseUrl) => {
+  try {
+    const url = `${baseUrl}/investments/accounts/${accountId}`;
+    
+    const response = await axios.get(url);
+    
+    if (response.data && response.data.success) {
+      return response.data.investments;
+    }
+    
+    return [];
+
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return [];
+    }
+    console.error(`Erro em getIfInvestments (${baseUrl}):`, error.message);
+    return [];
+  }
+};
