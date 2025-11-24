@@ -1,7 +1,7 @@
 import axios from 'axios'; 
 
 const BCB_API_URLS = {
-   SELIC: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados/ultimos/1?formato=json',
+   SELIC: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json',
    CDI: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json',
 };
 
