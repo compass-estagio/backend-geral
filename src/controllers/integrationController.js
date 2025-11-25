@@ -16,18 +16,35 @@ export const connectInstitution = async (req, res) => {
 
     const { base_url: baseUrl, name: institutionName } = institution;
     
-    const ifCustomer = await IntegrationService.findIfCustomerByCpf(user.cpf, baseUrl);
+    let ifCustomer;
+    try {
+      ifCustomer = await IntegrationService.findIfCustomerByCpf(user.cpf, baseUrl);
+    } catch (error) {
+      const isNotFound = 
+        (error.response && error.response.status === 404) || 
+        error.message.includes('404') ||
+        (error.response?.data?.message && error.response.data.message.includes('not found'));
+
+      if (isNotFound) {
+        console.log(`[Sync] Cliente não encontrado na ${institutionName} (404). Limpando dados locais...`);
+        
+        await FinancialAccount.deleteByUserIdAndInstitution(userId, institutionName);
+        
+        return res.status(200).json({ 
+          message: `Vínculo removido: cliente não encontrado na instituição ${institutionName}.`,
+          accountsAdded: [] 
+        });
+      }
+      throw error; 
+    }
 
     let ifAccounts;
     try {
       ifAccounts = await IntegrationService.discoverIfAccounts(ifCustomer._id, baseUrl);
-    
     } catch (error) {
       if (error.response && (error.response.status === 403 || error.response.status === 404)) {
-        console.log(`Falha na primeira tentativa (${error.response.status}). Criando consentimento...`);
-        
+        console.log(`[Sync] Renovando consentimento para ${institutionName}...`);
         await IntegrationService.createIfConsent(ifCustomer._id, baseUrl);
-        
         ifAccounts = await IntegrationService.discoverIfAccounts(ifCustomer._id, baseUrl);
       } else {
         throw error;
@@ -35,6 +52,8 @@ export const connectInstitution = async (req, res) => {
     }
     
     const savedAccounts = [];
+    const activeIfAccountIds = [];
+
     for (const account of ifAccounts) {
       const newAccount = await FinancialAccount.create({
         userId: user.id,
@@ -45,7 +64,16 @@ export const connectInstitution = async (req, res) => {
         ifAccountId: account._id,   
       });
       savedAccounts.push(newAccount);
+      activeIfAccountIds.push(account._id);
     }
+
+    
+
+    await FinancialAccount.deleteMissingAccounts({
+      userId: user.id,
+      institutionName: institutionName,
+      activeIds: activeIfAccountIds
+    });
     
     res.status(201).json({ 
       message: `Instituição '${institutionName}' conectada com sucesso!`,
