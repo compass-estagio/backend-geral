@@ -5,8 +5,11 @@ export const findIfCustomerByCpf = async (cpf, baseUrl) => {
     const response = await axios.get(`${baseUrl}/customers/lookup/by-cpf/${cpf}`);
     return response.data; 
   } catch (error) {
-    console.error(`Erro em findIfCustomerByCpf (${baseUrl}):`, error.response?.data);
-    throw new Error(error.response?.data?.message || 'Falha ao buscar cliente por CPF na IF');
+    if (error.response) {
+      throw error;
+    }
+    console.error(`Erro de rede/servidor em findIfCustomerByCpf (${baseUrl}):`, error.message);
+    throw new Error('Falha ao buscar cliente por CPF na IF');
   }
 };
 
