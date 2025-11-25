@@ -17,8 +17,7 @@ export const createIfConsent = async (customerId, baseUrl) => {
       'ACCOUNTS_READ',
       'BALANCES_READ',
       'TRANSACTIONS_READ',
-      'INVESTMENTS_READ',
-      'INVESTMENTS_WRITE'
+      'INVESTMENTS_READ'
     ];
     const response = await axios.post(`${baseUrl}/consents`, {
       customerId,
