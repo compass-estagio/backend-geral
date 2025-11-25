@@ -77,9 +77,35 @@ class FinancialAccount {
     const result = await db.query(query, [id]);
     return result.rows[0] || null;
   }
-  
+
+ /**
+   * Remove TODAS as contas de uma instituição para um usuário.
+   * Usado quando o cliente (CPF) não é mais encontrado na IF (Erro 404).
+   */
+  static async deleteByUserIdAndInstitution(userId, institutionName) {
+    const query = `
+      DELETE FROM financial_accounts 
+      WHERE user_id = $1 AND institution_name = $2
+    `;
+    await db.query(query, [userId, institutionName]);
+  }
+
+  /**
+   * Remove contas que existem no banco local mas NÃO vieram na lista da API.
+   * Usado para sincronizar: se a conta foi fechada na IF, removemos aqui.
+   */
+  static async deleteMissingAccounts({ userId, institutionName, activeIds }) {
+    if (!activeIds || activeIds.length === 0) {
+        return await this.deleteByUserIdAndInstitution(userId, institutionName);
+    }
+    const query = `
+      DELETE FROM financial_accounts 
+      WHERE user_id = $1 
+        AND institution_name = $2
+        AND if_account_id NOT IN (${activeIds.map((_, i) => `$${i + 3}`).join(', ')})
+    `;
+    await db.query(query, [userId, institutionName, ...activeIds]);
+  }
 }
-
-
 
 export default FinancialAccount;
