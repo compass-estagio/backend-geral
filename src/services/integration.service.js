@@ -19,7 +19,8 @@ export const createIfConsent = async (customerId, baseUrl) => {
       'CUSTOMER_DATA_READ',
       'ACCOUNTS_READ',
       'BALANCES_READ',
-      'TRANSACTIONS_READ'
+      'TRANSACTIONS_READ',
+      'INVESTMENTS_READ'
     ];
     const response = await axios.post(`${baseUrl}/consents`, {
       customerId,
@@ -62,3 +63,55 @@ export const getIfTransactions = async (accountId, baseUrl) => {
   }
 };
 
+export const getIfInvestments = async (ifAccountId, baseUrl, token) => {
+  try {
+    
+    const url = `${baseUrl}/investments/accounts/${ifAccountId}`;
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token 
+      }
+    };
+
+    const response = await axios.get(url, config);
+    
+    if (response.data && response.data.investments && Array.isArray(response.data.investments)) {
+      return response.data.investments;
+    }
+
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    
+    return [];
+
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return []; 
+    }
+    
+    console.error(`[Integration] Erro ao buscar investimentos em ${baseUrl}: ${error.message}`);
+    return [];
+  }
+};
+
+export const getIfProducts = async (baseUrl) => {
+  try {
+    const response = await axios.get(`${baseUrl}/products`);
+    
+    if (response.data && response.data.products && Array.isArray(response.data.products)) {
+      return response.data.products;
+    }
+
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error(`Erro ao buscar produtos na IF ${baseUrl}:`, error.message);
+    return [];
+  }
+};

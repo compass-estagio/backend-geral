@@ -49,4 +49,24 @@ router.get(
   controller.getTransactionsForAccount
 );
 
+/**
+ * @route GET /api/integration/dashboard/investments
+ * @desc Busca TODOS os investimentos de TODAS as contas do usuário.
+ */
+router.get(
+  '/dashboard/investments', 
+  authenticateToken,
+  controller.getAllUserInvestments
+);
+
+/**
+ * @route GET /api/integration/market/products
+ * @desc Lista catálogo de produtos disponíveis nas IFs
+ */
+router.get(
+  '/market/products', 
+  authenticateToken,
+  controller.getMarketProducts
+);
+
 export default router;
