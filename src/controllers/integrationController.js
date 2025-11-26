@@ -3,6 +3,40 @@ import User from '../models/User.js';
 import FinancialAccount from '../models/FinancialAccounts.js'; 
 import Institution from '../models/Institution.js'; 
 
+const getEstimatedReturn = (productName, type) => {
+  const name = productName.toLowerCase();
+  const t = type.toLowerCase();
+
+  if (t === 'treasury' || name.includes('tesouro')) {
+      if (name.includes('selic')) return 11.25; 
+      if (name.includes('ipca')) return 6.15;  
+      if (name.includes('prefixado')) return 12.50;
+      return 10.50; 
+  }
+
+  if (t === 'crypto' || name.includes('bitcoin') || name.includes('btc')) return 145.20;
+  if (name.includes('ethereum') || name.includes('eth')) return 85.5;
+
+  if (name.includes('petrobras') || name.includes('petr4')) return 35.4;
+  if (name.includes('vale') || name.includes('vale3')) return -12.5; 
+  if (name.includes('weg') || name.includes('wege3')) return 22.1;
+  if (name.includes('itau') || name.includes('itub4')) return 18.7;
+
+  if (name.includes('hglg')) return 9.2;
+  if (name.includes('mxrf') || name.includes('maxi renda')) return 12.5;
+  if (name.includes('knri')) return 8.8;
+  if (name.includes('logistica')) return 10.1;
+
+  if (name.includes('alaska')) return 15.2;
+  if (name.includes('verde')) return 13.5;
+
+  if (t === 'stock' || t === 'acao') return 12.5;
+  if (t === 'fii') return 10.0;
+  if (t === 'fundo' || t === 'funds') return 11.0;
+
+  return 0; 
+};
+
 export const connectInstitution = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -220,20 +254,26 @@ export const getAllUserInvestments = async (req, res) => {
         return rawInvestments.map(inv => {
           const productData = typeof inv.productId === 'object' ? inv.productId : {};
           
+          const name = productData.name || "Investimento não identificado";
+          const type = productData.productType || "OUTROS";
+          const invested = Number(inv.investedAmount) || 0;
+
+          const estimatedRate = getEstimatedReturn(name, type);
+          const estimatedProfit = invested * (estimatedRate / 100);
+
           return {
             _id: inv._id,
             investedAmount: inv.investedAmount,
             quantity: inv.quantity,
             purchaseDate: inv.purchaseDate,
-            
             name: productData.name || "Investimento não identificado",
             type: productData.productType || "OUTROS",
             ticker: productData.ticker || null,
             rateType: productData.rateType || null,
             rateValue: productData.rateValue || null,
-            
             source_institution: account.institution_name,
-            local_account_id: account.id
+            local_account_id: account.id,
+            estimatedProfit: estimatedProfit
           };
         });
 
@@ -241,54 +281,33 @@ export const getAllUserInvestments = async (req, res) => {
         console.error(`Erro ao processar conta ${account.id}:`, error.message);
         return [];
       }
+      
     });
 
     const results = await Promise.all(promises);
     const allInvestments = results.flat();
 
+    const totalInvested = allInvestments.reduce((acc, inv) => acc + (Number(inv.investedAmount) || 0), 0);
+    const totalProfit = allInvestments.reduce((acc, inv) => acc + (Number(inv.estimatedProfit) || 0), 0);
+    
+    const profitPercentage = totalInvested > 0 
+        ? (totalProfit / totalInvested) * 100 
+        : 0;
+
     res.status(200).json({
       total_items: allInvestments.length,
-      investments: allInvestments
+      investments: allInvestments,
+      summary: {
+        total_invested: totalInvested || 0,
+        total_profit: totalProfit || 0,
+        total_profit_percent: profitPercentage || 0 
+      }
     });
 
   } catch (error) {
     console.error("Erro geral ao consolidar investimentos:", error.message);
     res.status(500).json({ message: 'Falha ao buscar carteira consolidada.' });
   }
-};
-
-const getEstimatedReturn = (productName, type) => {
-  const name = productName.toLowerCase();
-  const t = type.toLowerCase();
-
-  if (t === 'treasury' || name.includes('tesouro')) {
-      if (name.includes('selic')) return 11.25; 
-      if (name.includes('ipca')) return 6.15;  
-      if (name.includes('prefixado')) return 12.50;
-      return 10.50; 
-  }
-
-  if (t === 'crypto' || name.includes('bitcoin') || name.includes('btc')) return 145.20;
-  if (name.includes('ethereum') || name.includes('eth')) return 85.5;
-
-  if (name.includes('petrobras') || name.includes('petr4')) return 35.4;
-  if (name.includes('vale') || name.includes('vale3')) return -12.5; 
-  if (name.includes('weg') || name.includes('wege3')) return 22.1;
-  if (name.includes('itau') || name.includes('itub4')) return 18.7;
-
-  if (name.includes('hglg')) return 9.2;
-  if (name.includes('mxrf') || name.includes('maxi renda')) return 12.5;
-  if (name.includes('knri')) return 8.8;
-  if (name.includes('logistica')) return 10.1;
-
-  if (name.includes('alaska')) return 15.2;
-  if (name.includes('verde')) return 13.5;
-
-  if (t === 'stock' || t === 'acao') return 12.5;
-  if (t === 'fii') return 10.0;
-  if (t === 'fundo' || t === 'funds') return 11.0;
-
-  return 0; 
 };
 
 export const getMarketProducts = async (req, res) => {
@@ -334,15 +353,15 @@ export const getMarketProducts = async (req, res) => {
 
       if (!finalLiquidity || finalLiquidity === 'No Maturity') {
         if (type === 'treasury' || p.name.toLowerCase().includes('tesouro')) {
-            finalLiquidity = 'D+1'; 
+          finalLiquidity = 'D+1'; 
         } else if (type === 'stock' || type === 'acao' || type === 'fii') {
-            finalLiquidity = 'D+2'; 
+          finalLiquidity = 'D+2'; 
         } else if (type === 'crypto' || type === 'cripto') {
-            finalLiquidity = 'Imediata'; 
+          finalLiquidity = 'Imediata'; 
         } else if (type === 'funds' || type === 'fundo') {
-            finalLiquidity = 'D+30'; 
+          finalLiquidity = 'D+30'; 
         } else {
-            finalLiquidity = 'No Vencimento'; 
+          finalLiquidity = 'No Vencimento'; 
         }
       }
 
