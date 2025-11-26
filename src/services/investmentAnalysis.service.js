@@ -113,64 +113,73 @@ export const analyzeUserPortfolio = async (userId) => {
       }
     }
     
-    if (account.account_type === 'savings') {
+    const normalizedType = account.account_type ? account.account_type.toLowerCase().trim() : '';
+
+    try {
       const balData = await IntegrationService.getIfAccountBalance(account.if_account_id, baseUrl);
       const balance = parseFloat(balData.balance || 0);
 
       if (balance > 0) {
         dashboard.summary.totalBalance += balance;
-        dashboard.allocation['POUPANCA'] += balance;
-
-        const poupancaYield = calculatePoupancaYield(selic);
-
-        if (balance > 100 && poupancaYield < selic) {
-          dashboard.suggestions.push({
-            type: 'WARNING',
-            title: 'Poupança rendendo pouco',
-            message: `Você tem R$ ${balance.toFixed(2)} na Poupança. O Tesouro Selic rende ${selic}% a.a.`,
-            score: 1
-          });
-        }
-      }
-    }
-
-    if (account.account_type === 'investment') {
-      const positions = await IntegrationService.getIfInvestments(account.if_account_id, baseUrl);
-
-      for (const pos of positions) {
-        const amount = parseFloat(pos.investedAmount || 0);
-        const product = pos.productId; 
         
-        if (!product) continue;
-
-        dashboard.summary.totalInvested += amount;
-        
-        const typeKey = product.productType ? product.productType.toUpperCase() : 'OTHERS';
-        if (dashboard.allocation[typeKey] !== undefined) {
-          dashboard.allocation[typeKey] += amount;
-        } else {
-          dashboard.allocation['OTHERS'] += amount;
-        }
-
-        if (typeKey === 'CDB' && product.rateType === 'CDI') {
-          if (product.rateValue < 100) {
+        if (normalizedType === 'savings') {
+          dashboard.allocation['POUPANCA'] += balance;
+          
+          const poupancaYield = calculatePoupancaYield(selic);
+          if (balance > 100 && poupancaYield < selic) {
             dashboard.suggestions.push({
-              type: 'OPPORTUNITY',
-              title: `Troque seu ${product.name}`,
-              message: `Este CDB rende apenas ${product.rateValue}% do CDI. Existem opções pagando 110% do CDI.`,
-              score: 2
+              type: 'WARNING',
+              title: 'Poupança rendendo pouco',
+              message: `Você tem R$ ${balance.toFixed(2)} na Poupança. O Tesouro Selic rende ${selic}% a.a.`,
+              score: 1
             });
           }
         }
+      }
+    } catch (err) {
+      console.error(`Erro ao ler saldo da conta ${account.if_account_id}:`, err.message);
+    }
 
-        if (typeKey === 'FUNDS' && product.adminFee > 2) {
+    if (['investment', 'checking', 'salary', 'savings'].includes(normalizedType)) {
+      
+      try {
+        const positions = await IntegrationService.getIfInvestments(account.if_account_id, baseUrl);
+
+        for (const pos of positions) {
+          const amount = parseFloat(pos.investedAmount || 0);
+          const product = pos.productId; 
+          
+          if (!product || typeof product !== 'object') continue;
+
+          dashboard.summary.totalInvested += amount;
+          
+          const typeKey = product.productType ? product.productType.toUpperCase() : 'OTHERS';
+          if (dashboard.allocation[typeKey] !== undefined) {
+            dashboard.allocation[typeKey] += amount;
+          } else {
+            dashboard.allocation['OTHERS'] += amount;
+          }
+
+          if (typeKey === 'CDB' && product.rateType === 'CDI' && product.rateValue < 100) {
+            dashboard.suggestions.push({
+              type: 'OPPORTUNITY',
+              title: `Troque seu ${product.name}`,
+              message: `Este CDB rende apenas ${product.rateValue}% do CDI.`,
+              score: 2
+            });
+          }
+
+          if (typeKey === 'FUNDS' && product.adminFee > 2) {
             dashboard.suggestions.push({
               type: 'ALERT',
               title: `Taxa alta em ${product.name}`,
-              message: `Taxa de administração de ${product.adminFee}%. Verifique a performance.`,
+              message: `Taxa de administração de ${product.adminFee}%.`,
               score: 3
             });
+          }
         }
+      } catch (error) {
+        console.log(`Conta ${account.id} sem investimentos.`);
       }
     }
   }
