@@ -310,17 +310,39 @@ export const getAllUserInvestments = async (req, res) => {
   }
 };
 
+function mapProductType(type) {
+  if (!type) return 'outros';
+  const t = type.toUpperCase();
+  const map = {
+    'CDB': 'cdb',
+    'STOCK': 'acao',
+    'CRYPTO': 'cripto',
+    'FII': 'fii',
+    'FUNDS': 'fundo',
+    'TREASURY': 'tesouro'
+  };
+  return map[t] || 'outros';
+}
+
 export const getMarketProducts = async (req, res) => {
   try {
     const institutions = await Institution.findAll();
     
-    const promises = institutions.map(async (inst) => {
+    // Filtra apenas IFs de investimento
+    const targetInstitutions = institutions.filter(inst => 
+       ['IF Thalles', 'IF-Thalles', 'IF Mauro', 'IF-Mauro'].some(target => inst.name.includes(target))
+    );
+
+    console.log(`🔎 Buscando produtos em: ${targetInstitutions.map(i => i.name).join(', ')}`);
+
+    const promises = targetInstitutions.map(async (inst) => {
       if (!inst.base_url) return [];
       try {
         const products = await IntegrationService.getIfProducts(inst.base_url);
+        console.log(`✅ [${inst.name}] Encontrou ${products.length} produtos.`);
         return products.map(p => ({ ...p, institutionName: inst.name }));
       } catch (error) {
-        console.error(`Erro ao buscar produtos na ${inst.name}:`, error.message);
+        console.error(`❌ [${inst.name}] Erro:`, error.message);
         return [];
       }
     });
@@ -329,40 +351,61 @@ export const getMarketProducts = async (req, res) => {
     const allProducts = results.flat();
 
     const formattedProducts = allProducts.map(p => {
-      
+      // 1. Risco
       let risk = 'médio';
       if (p.riskLevel) {
           const r = p.riskLevel.toUpperCase();
-          if (r === 'LOW') risk = 'baixo';
-          else if (r === 'MEDIUM') risk = 'médio';
-          else if (r === 'HIGH') risk = 'alto';
+          if (r === 'LOW' || r === 'BAIXO') risk = 'baixo';
+          else if (r === 'MEDIUM' || r === 'MEDIO') risk = 'médio';
+          else if (r === 'HIGH' || r === 'ALTO' || r === 'AGGRESSIVE') risk = 'alto';
       }
 
-      const type = p.productType ? p.productType.toLowerCase() : 'outros';
+      // 2. Tipo
+      const rawType = p.productType || p.type || 'outros';
+      const type = mapProductType(rawType); 
 
-
+      // 3. Rentabilidade Estimada
       let finalReturn = Number(p.rateValue) || 0;
       let returnType = p.rateType === 'CDI' ? 'indice' : 'percentual';
 
       if (finalReturn === 0) {
-        finalReturn = getEstimatedReturn(p.name, type);
-        returnType = 'percentual'; 
+        switch(type) {
+            case 'acao':
+                finalReturn = 12.5; 
+                returnType = 'percentual';
+                break;
+            case 'fii':
+                finalReturn = 10.8;
+                returnType = 'percentual';
+                break;
+            case 'cripto':
+                finalReturn = 45.0; 
+                returnType = 'percentual';
+                break;
+            case 'tesouro':
+                finalReturn = 11.25; 
+                returnType = 'percentual';
+                break;
+            case 'fundo':
+                finalReturn = 13.0; 
+                returnType = 'percentual';
+                break;
+            default:
+                if (p.name && p.name.toUpperCase().includes('CDB')) {
+                    finalReturn = 100;
+                    returnType = 'indice';
+                }
+        }
       }
 
+      // 4. Liquidez
       let finalLiquidity = p.liquidity;
-
-      if (!finalLiquidity || finalLiquidity === 'No Maturity') {
-        if (type === 'treasury' || p.name.toLowerCase().includes('tesouro')) {
-          finalLiquidity = 'D+1'; 
-        } else if (type === 'stock' || type === 'acao' || type === 'fii') {
-          finalLiquidity = 'D+2'; 
-        } else if (type === 'crypto' || type === 'cripto') {
-          finalLiquidity = 'Imediata'; 
-        } else if (type === 'funds' || type === 'fundo') {
-          finalLiquidity = 'D+30'; 
-        } else {
-          finalLiquidity = 'No Vencimento'; 
-        }
+      if (!finalLiquidity || finalLiquidity === 'No Maturity' || finalLiquidity === 'N/A') {
+        if (type === 'tesouro') finalLiquidity = 'D+1';
+        else if (type === 'acao' || type === 'fii') finalLiquidity = 'D+2';
+        else if (type === 'cripto') finalLiquidity = 'Imediata';
+        else if (type === 'fundo') finalLiquidity = 'D+30';
+        else finalLiquidity = 'No Vencimento'; 
       }
 
       return {
@@ -383,7 +426,7 @@ export const getMarketProducts = async (req, res) => {
     res.status(200).json(formattedProducts);
 
   } catch (error) {
-    console.error("Erro no market products:", error.message);
+    console.error("Erro crítico no market products:", error);
     res.status(500).json({ message: 'Falha ao buscar catálogo.' });
   }
 };

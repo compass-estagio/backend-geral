@@ -101,9 +101,14 @@ export const getIfProducts = async (baseUrl) => {
   try {
     const response = await axios.get(`${baseUrl}/products`);
     
-    if (response.data && response.data.products) {
+    if (response.data && response.data.products && Array.isArray(response.data.products)) {
       return response.data.products;
     }
+
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    
     return [];
   } catch (error) {
     console.error(`Erro ao buscar produtos na IF ${baseUrl}:`, error.message);
