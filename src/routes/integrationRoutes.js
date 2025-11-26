@@ -58,4 +58,15 @@ router.get(
   authenticateToken,
   controller.getAllUserInvestments
 );
+
+/**
+ * @route GET /api/integration/market/products
+ * @desc Lista catálogo de produtos disponíveis nas IFs
+ */
+router.get(
+  '/market/products', 
+  authenticateToken,
+  controller.getMarketProducts
+);
+
 export default router;
