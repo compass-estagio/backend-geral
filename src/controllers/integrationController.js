@@ -189,11 +189,12 @@ export const getTransactionsForAccount = async (req, res) => {
 export const getAllUserInvestments = async (req, res) => {
   try {
     const userId = req.user.id;
+    const authToken = req.headers.authorization; 
 
     const localAccounts = await FinancialAccount.findByUserId(userId);
 
     if (!localAccounts || localAccounts.length === 0) {
-      return res.status(200).json([]); 
+      return res.status(200).json({ total_items: 0, investments: [] });
     }
 
     const institutions = await Institution.findAll();
@@ -201,29 +202,48 @@ export const getAllUserInvestments = async (req, res) => {
 
     const promises = localAccounts.map(async (account) => {
       const baseUrl = institutionMap.get(account.institution_name);
-      
-      if (!baseUrl) return [];
+      const externalId = account.if_account_id; 
+
+      if (!baseUrl || !externalId) return [];
 
       try {
-        const investments = await IntegrationService.getIfInvestments(
-          account.if_account_id,
-          baseUrl
+        const rawInvestments = await IntegrationService.getIfInvestments(
+          externalId, 
+          baseUrl,
+          authToken 
         );
 
-        return investments.map(inv => ({
-          ...inv,
-          source_institution: account.institution_name,
-          local_account_id: account.id
-        }));
+        if (!rawInvestments || !Array.isArray(rawInvestments)) {
+          return [];
+        }
+
+        return rawInvestments.map(inv => {
+          const productData = typeof inv.productId === 'object' ? inv.productId : {};
+          
+          return {
+            _id: inv._id,
+            investedAmount: inv.investedAmount,
+            quantity: inv.quantity,
+            purchaseDate: inv.purchaseDate,
+            
+            name: productData.name || "Investimento não identificado",
+            type: productData.productType || "OUTROS",
+            ticker: productData.ticker || null,
+            rateType: productData.rateType || null,
+            rateValue: productData.rateValue || null,
+            
+            source_institution: account.institution_name,
+            local_account_id: account.id
+          };
+        });
 
       } catch (error) {
-        console.error(`Erro ao buscar investimentos da conta ${account.id}:`, error.message);
+        console.error(`Erro ao processar conta ${account.id}:`, error.message);
         return [];
       }
     });
 
     const results = await Promise.all(promises);
-
     const allInvestments = results.flat();
 
     res.status(200).json({

@@ -63,23 +63,36 @@ export const getIfTransactions = async (accountId, baseUrl) => {
   }
 };
 
-export const getIfInvestments = async (accountId, baseUrl) => {
+export const getIfInvestments = async (ifAccountId, baseUrl, token) => {
   try {
-    const url = `${baseUrl}/investments/accounts/${accountId}`;
     
-    const response = await axios.get(url);
+    const url = `${baseUrl}/investments/accounts/${ifAccountId}`;
+
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token 
+      }
+    };
+
+    const response = await axios.get(url, config);
     
-    if (response.data && response.data.success) {
+    if (response.data && response.data.investments && Array.isArray(response.data.investments)) {
       return response.data.investments;
+    }
+
+    if (Array.isArray(response.data)) {
+      return response.data;
     }
     
     return [];
 
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      return [];
+      return []; 
     }
-    console.error(`Erro em getIfInvestments (${baseUrl}):`, error.message);
+    
+    console.error(`[Integration] Erro ao buscar investimentos em ${baseUrl}: ${error.message}`);
     return [];
   }
 };
