@@ -12,5 +12,5 @@ VALUES ('IF-Mauro', 'https://api-if-mauro-gomes.vercel.app/openfinance')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO institutions (name, base_url) 
-VALUES ('IF-Thalles', 'https://thalles-if.vercel.app/openfinance/')
+VALUES ('IF-Thalles', 'https://thalles-if.vercel.app/openfinance')
 ON CONFLICT (name) DO NOTHING;
